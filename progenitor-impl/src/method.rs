@@ -138,6 +138,7 @@ pub enum BodyContentType {
     Json,
     FormUrlencoded,
     Text(String),
+    FormData,
 }
 
 impl FromStr for BodyContentType {
@@ -149,6 +150,7 @@ impl FromStr for BodyContentType {
             "application/octet-stream" => Ok(Self::OctetStream),
             "application/json" => Ok(Self::Json),
             "application/x-www-form-urlencoded" => Ok(Self::FormUrlencoded),
+            "multipart/form-data" => Ok(Self::FormData),
             "text/plain" | "text/x-markdown" => Ok(Self::Text(String::from(&s[..offset]))),
             _ => Err(Error::UnexpectedFormat(format!(
                 "unexpected content type: {}",
@@ -164,6 +166,7 @@ impl std::fmt::Display for BodyContentType {
             Self::OctetStream => "application/octet-stream",
             Self::Json => "application/json",
             Self::FormUrlencoded => "application/x-www-form-urlencoded",
+            Self::FormData => "multipart/form-data",
             Self::Text(typ) => typ,
         })
     }
@@ -911,6 +914,9 @@ impl Generator {
                     // returns an error in the case of a serialization failure.
                     .form_urlencoded(&body)?
                 }),
+                (OperationParameterKind::Body(BodyContentType::FormData), _) => Some(quote! {
+                    .json(&body)
+                }),
                 (OperationParameterKind::Body(_), _) => {
                     unreachable!("invalid body kind/type combination")
                 }
@@ -1379,7 +1385,7 @@ impl Generator {
     ///             param_1,
     ///             param_2,
     ///         } = self;
-    ///     
+    ///
     ///         let param_1 = param_1.map_err(Error::InvalidRequest)?;
     ///         let param_2 = param_1.map_err(Error::InvalidRequest)?;
     ///
@@ -2106,7 +2112,7 @@ impl Generator {
                 }?;
                 OperationParameterType::RawBody
             }
-            BodyContentType::Json | BodyContentType::FormUrlencoded => {
+            BodyContentType::Json | BodyContentType::FormUrlencoded | BodyContentType::FormData => {
                 // TODO it would be legal to have the encoding field set for
                 // application/x-www-form-urlencoded content, but I'm not sure
                 // how to interpret the values.
